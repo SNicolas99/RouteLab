@@ -1,13 +1,9 @@
 package dev.routelab;
 
-import dev.routelab.algorithm.BruteForce;
-import dev.routelab.algorithm.SimulatedAnnealing;
-import dev.routelab.algorithm.NearestNeighbor;
-import dev.routelab.algorithm.TwoOpt;
+import dev.routelab.algorithm.*;
 import dev.routelab.model.City;
 import dev.routelab.model.Tour;
 
-import java.util.ArrayList;
 import java.util.List;
 
 public class Main {
@@ -24,47 +20,43 @@ public class Main {
                 new City("C", 7, 3)
         );
 
-        // Calculate routes
-        List<City> bruteForce = BruteForce.solve(cities);
-        List<City> annealing = SimulatedAnnealing.solve(
-                cities, 100.0, 0.003
+        // Initialize all solvers
+        List<RouteSolver> solvers = List.of(
+                new BruteForceSolver(),
+                new NearestNeighborSolver(),
+                new TwoOptSolver(),
+                new SimulatedAnnealingSolver(100.0, 0.003)
         );
-        List<City> nearestNeighbor = NearestNeighbor.findTour(cities);
-        List<City> twoOpt = TwoOpt.solve(cities);
 
-        // Compare results
         System.out.println("=== RouteLab ===");
+        System.out.println("Cities: " + cities.size());
+        System.out.println();
 
-        printResult("Initial", cities);
-        printResult("Brute Force", bruteForce);
-        printResult("Simulated Annealing", annealing);
-        printResult("Nearest Neighbor", nearestNeighbor);
-        printResult("2-opt", twoOpt);
+        // Execute and compare solvers
+        for (RouteSolver solver : solvers) {
 
-        // Also test reverse Segment
-        List<City> cities2 = new ArrayList<>(List.of(
-                new City("A", 0, 0),
-                new City("B", 1, 0),
-                new City("C", 2, 0),
-                new City("D", 3, 0),
-                new City("E", 4, 0),
-                new City("F", 5, 0)
-        ));
+            long startTime = System.nanoTime();
 
-        TwoOpt.reverseSegment(cities2, 1, 4);
+            List<City> result = solver.solve(cities);
 
-        System.out.println(cities2.stream().map(City::name).toList());
-    }
+            double runtimeMs =
+                    (System.nanoTime() - startTime) / 1_000_000.0;
 
-    private static void printResult(String name, List<City> tour) {
+            double distance = Tour.calculateDistance(result);
 
-        double distance = Tour.calculateDistance(tour);
+            System.out.printf(
+                    "%-22s | Distance: %8.4f | Time: %8.3f ms%n",
+                    solver.getName(),
+                    distance,
+                    runtimeMs
+            );
 
-        System.out.printf("%-20s | Distance: %8.4f%n", name, distance);
-
-        System.out.println(
-                "  Route: " +
-                        tour.stream().map(City::name).toList()
-        );
+            System.out.println(
+                    "  Route: " +
+                            result.stream()
+                                    .map(City::name)
+                                    .toList()
+            );
+        }
     }
 }
