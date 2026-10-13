@@ -3,9 +3,11 @@ package dev.routelab;
 import dev.routelab.algorithm.BruteForce;
 import dev.routelab.algorithm.SimulatedAnnealing;
 import dev.routelab.algorithm.NearestNeighbor;
+import dev.routelab.algorithm.TwoOpt;
 import dev.routelab.model.City;
 import dev.routelab.model.Tour;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class Main {
@@ -28,6 +30,7 @@ public class Main {
                 cities, 100.0, 0.003
         );
         List<City> nearestNeighbor = NearestNeighbor.findTour(cities);
+        List<City> twoOpt = TwoOpt.solve(cities);
 
         // Compare results
         System.out.println("=== RouteLab ===");
@@ -36,6 +39,21 @@ public class Main {
         printResult("Brute Force", bruteForce);
         printResult("Simulated Annealing", annealing);
         printResult("Nearest Neighbor", nearestNeighbor);
+        printResult("2-opt", twoOpt);
+
+        // Also test reverse Segment
+        List<City> cities2 = new ArrayList<>(List.of(
+                new City("A", 0, 0),
+                new City("B", 1, 0),
+                new City("C", 2, 0),
+                new City("D", 3, 0),
+                new City("E", 4, 0),
+                new City("F", 5, 0)
+        ));
+
+        TwoOpt.reverseSegment(cities2, 1, 4);
+
+        System.out.println(cities2.stream().map(City::name).toList());
     }
 
     private static void printResult(String name, List<City> tour) {
