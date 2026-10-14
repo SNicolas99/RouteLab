@@ -1,61 +1,120 @@
 package dev.routelab;
 
 import dev.routelab.algorithm.*;
+import dev.routelab.generator.CityGenerator;
+import dev.routelab.model.BenchmarkResult;
 import dev.routelab.model.City;
 import dev.routelab.model.Tour;
+import dev.routelab.service.BenchmarkService;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class Main {
 
     public static void main(String[] args) {
 
-        // Initialize cities
-        List<City> cities = List.of(
-                new City("A", 0, 0),
-                new City("D", 4, 6),
-                new City("E", 0, 5),
-                new City("B", 4, 0),
-                new City("F", 2, 2),
-                new City("C", 7, 3)
-        );
+        int cityCount = 100;
+        int runs = 10;
+        long seed = 42L;
 
-        // Initialize all solvers
-        List<RouteSolver> solvers = List.of(
-                new BruteForceSolver(),
-                new NearestNeighborSolver(),
-                new TwoOptSolver(),
-                new SimulatedAnnealingSolver(100.0, 0.003)
-        );
+        try {
+            // Parse CLI arguments
+            for (int i = 0; i < args.length; i++) {
+                switch (args[i]) {
+                    case "--cities" -> cityCount = Integer.parseInt(args[++i]);
+                    case "--runs" -> runs = Integer.parseInt(args[++i]);
+                    case "--seed" -> seed = Long.parseLong(args[++i]);
+                    default -> throw new IllegalArgumentException("Invalid argument: " + args[i]);
+                }
+            }
 
-        System.out.println("=== RouteLab ===");
-        System.out.println("Cities: " + cities.size());
-        System.out.println();
+            // Catch exceptions
+            if (cityCount < 0) {
+                throw new IllegalArgumentException("Number of cities must be >= 0");
+            }
 
-        // Execute and compare solvers
-        for (RouteSolver solver : solvers) {
+            if (runs <= 0) {
+                throw new IllegalArgumentException("Number of runs must be positive");
+            }
 
-            long startTime = System.nanoTime();
+            // Generate cities
+            List<City> cities = CityGenerator.generate(cityCount, seed);
+            System.out.println("Generated " + cities.size() + " cities");
 
-            List<City> result = solver.solve(cities);
-
-            double runtimeMs =
-                    (System.nanoTime() - startTime) / 1_000_000.0;
-
-            double distance = Tour.calculateDistance(result);
-
-            System.out.printf(
-                    "%-22s | Distance: %8.4f | Time: %8.3f ms%n",
-                    solver.getName(),
-                    distance,
-                    runtimeMs
+            // Add solvers for all algorithms
+            List<RouteSolver> solvers = new ArrayList<>();
+            solvers.add(new NearestNeighborSolver());
+            solvers.add(new TwoOptSolver());
+            solvers.add(
+                    new SimulatedAnnealingSolver(
+                            1000.0,
+                            0.003
+                    )
             );
 
-            System.out.println(
-                    "  Route: " +
-                            result.stream()
-                                    .map(City::name)
-                                    .toList()
+            Double optimalDistance = null;
+
+            // Exact solver only feasible for small number of cities (e.g.: 9 or smaller)
+            if (cityCount <= 9) {
+                BruteForceSolver bruteForceSolver = new BruteForceSolver();
+                List<City> optimalTour = bruteForceSolver.solve(cities);
+                optimalDistance = Tour.calculateDistance(optimalTour);
+                solvers.addFirst(bruteForceSolver);
+            }
+
+            List<BenchmarkResult> results = BenchmarkService.run(
+                    solvers,
+                    cities,
+                    runs,
+                    optimalDistance
+            );
+
+            printResults(results, cityCount, runs, seed);
+
+
+        } catch (RuntimeException e) {
+            System.err.println("Error: " + e.getMessage());
+            System.err.println("Usage: java -jar route-lab.jar [--cities <n>] [--runs <n>] [--seed <n>]");
+            System.exit(1);
+        }
+    }
+
+    private static void printResults(
+            List<BenchmarkResult> results,
+            int cityCount,
+            int runs,
+            long seed
+    ) {
+        System.out.println();
+        System.out.println("=== RouteLab Benchmark ===");
+        System.out.printf(
+                "Cities: %d | Runs: %d | Seed: %d%n%n",
+                cityCount, runs, seed
+        );
+
+        System.out.printf(
+                "%-22s %12s %12s %12s %12s%n",
+                "Algorithm", "Avg Dist",
+                "Best Dist", "Avg ms", "Gap %"
+        );
+
+        for (BenchmarkResult result : results) {
+
+            String gap = result.optimalityGapPercent() == null
+                    ? "N/A"
+                    : String.format(
+                    "%.2f",
+                    result.optimalityGapPercent()
+            );
+
+            System.out.printf(
+                    "%-22s %12.4f %12.4f %12.3f %12s%n",
+                    result.algorithm(),
+                    result.averageDistance(),
+                    result.bestDistance(),
+                    result.averageRuntimeMs(),
+                    gap
             );
         }
     }
